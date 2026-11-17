@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Alert,
   Image,
@@ -10,6 +10,9 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { doc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore';
+
+import { db } from '../firebaseConfig';
 
 const vehicles = {
   'LO 5638': {
@@ -34,24 +37,56 @@ export default function AccountantDashboard() {
     'LO 5638': '112400',
     'NB-1234': '45210',
   });
+  const [isSavingOdometer, setIsSavingOdometer] = useState(false);
+
+  useEffect(() => {
+    return onSnapshot(
+      doc(db, 'vehicles', selectedVehicle),
+      (snapshot) => {
+        const savedOdometer = snapshot.data()?.odometer;
+        if (typeof savedOdometer === 'number' && savedOdometer > 0) {
+          const value = String(savedOdometer);
+          setUpdatedOdometers((previous) => ({
+            ...previous,
+            [selectedVehicle]: value,
+          }));
+          setOdometer(value);
+        }
+      },
+      (error) => { console.error('Firestore read failed:', error); Alert.alert('දෝෂයක්', 'Firestore දත්ත කියවීමට නොහැකි වුණා.'); },
+    );
+  }, [selectedVehicle]);
 
   const selectVehicle = (vehicle: keyof typeof vehicles) => {
     setSelectedVehicle(vehicle);
     setOdometer(updatedOdometers[vehicle]);
   };
 
-  const updateOdometer = () => {
+  const updateOdometer = async () => {
     if (!odometer || Number(odometer) <= 0) {
       Alert.alert('දෝෂයක්', 'නිවැරදි Odometer අගයක් ඇතුළත් කරන්න.');
       return;
     }
 
-    setUpdatedOdometers((previous) => ({
-      ...previous,
-      [selectedVehicle]: odometer,
-    }));
-
-    Alert.alert('සාර්ථකයි', 'Odometer අගය තාවකාලිකව යාවත්කාලීන කළා.');
+    setIsSavingOdometer(true);
+    try {
+      const value = String(Math.floor(Number(odometer)));
+      await setDoc(
+        doc(db, 'vehicles', selectedVehicle),
+        { odometer: Number(value), updatedAt: serverTimestamp() },
+        { merge: true },
+      );
+      setUpdatedOdometers((previous) => ({
+        ...previous,
+        [selectedVehicle]: value,
+      }));
+      setOdometer(value);
+      Alert.alert('සාර්ථකයි', 'Odometer අගය Firestore එකට සුරැකුවා.');
+    } catch (error) { console.error("Odometer save failed:", error);
+      Alert.alert('දෝෂයක්', 'Odometer අගය සුරැකීමට නොහැකි වුණා.');
+    } finally {
+      setIsSavingOdometer(false);
+    }
   };
 
   const formatNumber = (value: string) =>
@@ -158,7 +193,9 @@ export default function AccountantDashboard() {
           />
 
           <Pressable style={styles.updateButton} onPress={updateOdometer}>
-            <Text style={styles.buttonText}>Update Odometer</Text>
+            <Text style={styles.buttonText}>
+              {isSavingOdometer ? 'සුරකිමින්…' : 'Update Odometer'}
+            </Text>
           </Pressable>
         </View>
 

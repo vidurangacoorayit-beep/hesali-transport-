@@ -1,14 +1,73 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { doc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore';
+
+import { db } from '../firebaseConfig';
 const logo = require('../../assets/images/hesali-logo.png');
 
 const AccountantDashboard = () => {
-  // තෝරාගත් වාහනය මතක තියාගන්න State එකක් (Default එක LO 5638 විදිහට දුන්නා)
-  const [selectedVehicle, setSelectedVehicle] = useState<'LO 5638' | 'NB-1234'>('LO 5638');
+  type VehicleId = 'LO 5638' | 'NB-1234';
+  const [selectedVehicle, setSelectedVehicle] = useState<VehicleId>('LO 5638');
+  const [odometer, setOdometer] = useState('112400');
+  const [savedOdometers, setSavedOdometers] = useState<Record<VehicleId, string>>({
+    'LO 5638': '112400',
+    'NB-1234': '45210',
+  });
+  const [isSavingOdometer, setIsSavingOdometer] = useState(false);
+  const [odometerError, setOdometerError] = useState('');
 
-  // වාහනය අනුව Odometer එක වෙනස් වෙන්න හදපු Dummy Data ටිකක්
   const vehicleData = {
-    'LO 5638': { odometer: '112,400 km', name: 'LO 5638 (Lorry)' },
-    'NB-1234': { odometer: '45,210 km', name: 'NB-1234 (Ashok Leyland 1618)' }
+    'LO 5638': { name: 'LO 5638 (Lorry)' },
+    'NB-1234': { name: 'NB-1234 (Ashok Leyland 1618)' },
+  };
+
+  useEffect(() => {
+    return onSnapshot(
+      doc(db, 'vehicles', selectedVehicle),
+      (snapshot) => {
+        const value = snapshot.data()?.odometer;
+        if (typeof value === 'number' && value > 0) {
+          const formattedValue = String(value);
+          setSavedOdometers((previous) => ({
+            ...previous,
+            [selectedVehicle]: formattedValue,
+          }));
+          setOdometer(formattedValue);
+        }
+        setOdometerError('');
+      },
+      () => setOdometerError('Firestore දත්ත කියවීමට නොහැකි වුණා.'),
+    );
+  }, [selectedVehicle]);
+
+  useEffect(() => {
+    setOdometer(savedOdometers[selectedVehicle]);
+  }, [selectedVehicle, savedOdometers]);
+
+  const updateOdometer = async () => {
+    const value = Number(odometer);
+    if (!Number.isInteger(value) || value <= 0) {
+      setOdometerError('නිවැරදි Odometer අගයක් ඇතුළත් කරන්න.');
+      return;
+    }
+
+    setIsSavingOdometer(true);
+    setOdometerError('');
+    try {
+      await setDoc(
+        doc(db, 'vehicles', selectedVehicle),
+        { odometer: value, updatedAt: serverTimestamp() },
+        { merge: true },
+      );
+      setSavedOdometers((previous) => ({
+        ...previous,
+        [selectedVehicle]: String(value),
+      }));
+      setOdometer(String(value));
+    } catch {
+      setOdometerError('Odometer අගය සුරැකීමට නොහැකි වුණා.');
+    } finally {
+      setIsSavingOdometer(false);
+    }
   };
 
   return (
@@ -46,7 +105,7 @@ const AccountantDashboard = () => {
                     {/* Vehicle Dropdown */}
                     <select
                         value={selectedVehicle}
-                        onChange={(e) => setSelectedVehicle(e.target.value as 'LO 5638' | 'NB-1234')}
+                        onChange={(e) => setSelectedVehicle(e.target.value as VehicleId)}
                         className="bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg focus:ring-2 focus:ring-[#FF8C00] focus:border-[#FF8C00] outline-none px-3 py-2 cursor-pointer font-bold"
                     >
                         <option value="LO 5638">LO 5638</option>
@@ -57,7 +116,7 @@ const AccountantDashboard = () => {
 
             <div className="text-left md:text-right w-full md:w-auto bg-slate-50 p-3 rounded-xl border border-slate-100">
                 <p className="text-sm font-bold text-slate-500">වත්මන් Odometer ({selectedVehicle})</p>
-                <p className="text-2xl font-bold text-[#0047AB]">{vehicleData[selectedVehicle].odometer}</p>
+                <p className="text-2xl font-bold text-[#0047AB]">{Number(savedOdometers[selectedVehicle]).toLocaleString('en-US')} km</p>
             </div>
         </div>
 
@@ -94,9 +153,10 @@ const AccountantDashboard = () => {
                 <div className="mb-5">
                     <label className="block text-sm font-bold text-slate-700 mb-2">Odometer අගය යාවත්කාලීන කරන්න</label>
                     <div className="flex gap-2">
-                        <input type="number" placeholder="උදා: 45300" className="flex-1 px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-[#FF8C00] outline-none bg-slate-50" />
-                        <button className="bg-green-600 text-white px-4 py-2 rounded-xl font-bold hover:bg-green-700 transition">Update</button>
+                        <input type="number" min="1" step="1" value={odometer} onChange={(e) => setOdometer(e.target.value)} placeholder="උදා: 45300" className="flex-1 px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-[#FF8C00] outline-none bg-slate-50" />
+                        <button onClick={updateOdometer} disabled={isSavingOdometer} className="bg-green-600 text-white px-4 py-2 rounded-xl font-bold hover:bg-green-700 transition disabled:opacity-60">{isSavingOdometer ? 'සුරකිමින්…' : 'Update'}</button>
                     </div>
+                    {odometerError && <p role="alert" className="text-sm text-red-600 mt-2">{odometerError}</p>}
                 </div>
 
                 {/* Add Trip Button */}
