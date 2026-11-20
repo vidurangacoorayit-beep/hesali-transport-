@@ -44,3 +44,6 @@ example
 
 # Protect environment files
 .env*
+
+# Firebase local cache
+.firebase/
