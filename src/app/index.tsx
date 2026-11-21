@@ -8,6 +8,7 @@ import {
 } from 'react-native';
 
 import LoginScreen from '../pages/LoginScreen';
+import AccountantDashboard from '../pages/AccountantDashboard';
 import {
   auth,
   onAuthStateChanged,
@@ -80,6 +81,26 @@ export default function Index() {
         onResetPassword={async (email) => {
           await resetUserPassword(email);
         }}
+      />
+    );
+  }
+
+  if (profile.role === 'accountant') {
+    if (!profile.companyID) {
+      return (
+        <View style={styles.center}>
+          <Text style={styles.message}>Company assignment is missing.</Text>
+          <Pressable style={styles.button} onPress={() => signOut(auth)}>
+            <Text style={styles.buttonText}>Sign Out</Text>
+          </Pressable>
+        </View>
+      );
+    }
+
+    return (
+      <AccountantDashboard
+        companyID={profile.companyID}
+        onSignOut={() => signOut(auth)}
       />
     );
   }
