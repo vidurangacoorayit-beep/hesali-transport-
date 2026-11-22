@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import {
   ActivityIndicator,
-  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -57,8 +56,9 @@ export default function LoginScreen({ onLogin, onResetPassword }: Props) {
     try {
       await onResetPassword(email.trim());
       setResetMessage('Password Reset Link එක ඔබගේ Email එකට යැව්වා. Inbox එක පරීක්ෂා කරන්න.');
-    } catch {
-      setError('Reset Email යැවීමට නොහැකි වුණා. Email Address එක පරීක්ෂා කරන්න.');
+    } catch (err) {
+      const details = err as { code?: string; message?: string };
+      setError(`Reset Error: ${details.code || details.message || 'Unknown error'}`);
     } finally {
       setResetLoading(false);
     }
@@ -71,11 +71,6 @@ export default function LoginScreen({ onLogin, onResetPassword }: Props) {
     >
       <View style={styles.card}>
         <View style={styles.header}>
-          <Image
-            source={require('../../assets/images/hesali-logo.png')}
-            style={styles.logo}
-            resizeMode="contain"
-          />
           <Text style={styles.brand}>HESALI TRANSPORT</Text>
           <Text style={styles.subtitle}>Fleet Management System</Text>
         </View>
@@ -167,11 +162,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 30,
     paddingHorizontal: 20,
-  },
-  logo: {
-    width: 90,
-    height: 90,
-    marginBottom: 12,
   },
   brand: {
     color: '#FFFFFF',

@@ -46,12 +46,18 @@ export default function Index() {
             setChecking(false);
           }
         })
-        .catch(async () => {
+        .catch(async (error) => {
+          console.error('PROFILE_LOAD_ERROR:', error);
+          setAuthError(
+            error instanceof Error
+              ? `${error.name}: ${error.message}`
+              : String(error)
+          );
+
           await signOut(auth);
 
           if (active) {
             setProfile(null);
-            setAuthError('Your account is inactive or your profile is unavailable.');
             setChecking(false);
           }
         });
