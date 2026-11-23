@@ -65,6 +65,7 @@ export default function AccountantDashboard({
   const [error, setError] = useState('');
   const [activeSection, setActiveSection] =
     useState<Section>('dashboard');
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     setLoading(true);
@@ -112,7 +113,19 @@ export default function AccountantDashboard({
 
   return (
     <div className="min-h-screen bg-slate-100 font-sans flex flex-col md:flex-row-reverse">
-      <aside className="w-full md:w-64 shrink-0 bg-[#0047AB] text-white flex flex-col shadow-xl">
+      <div className="md:hidden flex items-center justify-between bg-white px-4 py-3 border-b border-slate-200 shadow-sm">
+        <span className="font-bold text-[#0047AB]">Hesali Transport</span>
+        <button
+          type="button"
+          onClick={() => setMobileMenuOpen((open) => !open)}
+          aria-expanded={mobileMenuOpen}
+          aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
+          className="px-4 py-2 rounded-lg bg-[#0047AB] text-white font-semibold"
+        >
+          {mobileMenuOpen ? '✕ වසන්න' : '☰ Menu'}
+        </button>
+      </div>
+      <aside className={`w-full md:w-64 shrink-0 bg-[#0047AB] text-white flex-col shadow-xl ${mobileMenuOpen ? 'flex' : 'hidden'} md:flex`}>
         <div className="px-6 py-7 border-b border-blue-800">
           <div className="text-center">
             <div className="w-16 h-16 mx-auto rounded-2xl bg-white text-[#0047AB] flex items-center justify-center text-3xl font-black mb-3">
@@ -138,7 +151,7 @@ export default function AccountantDashboard({
                 <button
                   key={item.id}
                   type="button"
-                  onClick={() => setActiveSection(item.id)}
+                  onClick={() => { setActiveSection(item.id); setMobileMenuOpen(false); }}
                   className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition ${
                     selected
                       ? 'bg-blue-900 text-[#FFB15C] font-bold shadow-inner'
@@ -154,7 +167,7 @@ export default function AccountantDashboard({
 
           <button
             type="button"
-            onClick={onSignOut}
+            onClick={() => { setMobileMenuOpen(false); onSignOut(); }}
             className="w-full text-left px-4 py-3 mt-8 text-red-200 hover:bg-blue-800 rounded-xl transition"
           >
             🚪 ඉවත් වන්න
