@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
+import { recordDailyManualOdometer } from '../services/odometerService';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 
@@ -56,6 +57,21 @@ const sectionInfo: Record<
   },
 };
 
+function getSriLankaDate(): string {
+  const parts = new Intl.DateTimeFormat("en", {
+    timeZone: "Asia/Colombo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+
+  const year = parts.find((part) => part.type === "year")?.value;
+  const month = parts.find((part) => part.type === "month")?.value;
+  const day = parts.find((part) => part.type === "day")?.value;
+
+  return `${year}-${month}-${day}`;
+}
+
 export default function AccountantDashboard({
   companyID,
   onSignOut,
@@ -66,6 +82,13 @@ export default function AccountantDashboard({
   const [activeSection, setActiveSection] =
     useState<Section>('dashboard');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [odometerReading, setOdometerReading] = useState('');
+  const [odometerDate, setOdometerDate] = useState(getSriLankaDate());
+  const [odometerReason, setOdometerReason] = useState('');
+  const [odometerSaving, setOdometerSaving] = useState(false);
+  const [odometerSuccess, setOdometerSuccess] = useState('');
+  const [odometerError, setOdometerError] = useState('');
+  const sriLankaDate = getSriLankaDate();
 
   useEffect(() => {
     setLoading(true);
@@ -105,6 +128,66 @@ export default function AccountantDashboard({
     typeof value === 'number'
       ? value.toLocaleString('en-US') + ' km'
       : 'දත්ත නැත';
+
+  const handleOdometerSubmit = async (
+    event: FormEvent<HTMLFormElement>,
+  ) => {
+    event.preventDefault();
+    setOdometerSuccess('');
+    setOdometerError('');
+
+    if (!odometerReading.trim()) {
+      setOdometerError('Odometer reading එක ඇතුළත් කරන්න.');
+      return;
+    }
+
+    const readingKm = Number(odometerReading);
+
+    if (!Number.isSafeInteger(readingKm) || readingKm < 0) {
+      setOdometerError('නිවැරදි සම්පූර්ණ km අගයක් ඇතුළත් කරන්න.');
+      return;
+    }
+
+    if (!odometerDate) {
+      setOdometerError('Reading date එක තෝරන්න.');
+      return;
+    }
+
+    if (odometerDate !== getSriLankaDate()) {
+      setOdometerError('ශ්‍රී ලංකාවේ අද දිනයේ Reading එක පමණක් ඇතුළත් කළ හැකියි.');
+      return;
+    }
+
+    if (!vehicle) {
+      setOdometerError('වාහනයේ දත්ත තවම ලබාගෙන නැහැ. කරුණාකර නැවත උත්සාහ කරන්න.');
+      return;
+    }
+
+    setOdometerSaving(true);
+
+    try {
+      const result = await recordDailyManualOdometer({
+        vehicleId: 'LO-5638',
+        readingKm,
+        readingDate: odometerDate,
+        reason: odometerReason.trim(),
+      });
+
+      setOdometerSuccess(
+        `${result.message} Previous: ${result.previousReadingKm.toLocaleString('en-US')} km.`,
+      );
+      setOdometerReading('');
+      setOdometerReason('');
+    } catch (err: unknown) {
+      setOdometerError(
+        err instanceof Error
+          ? err.message
+          : 'Odometer update කිරීම අසාර්ථක වුණා.',
+      );
+    } finally {
+      setOdometerSaving(false);
+    }
+  };
 
   const activeTitle =
     activeSection === 'dashboard'
@@ -266,6 +349,88 @@ export default function AccountantDashboard({
                         {formatKm(vehicle.manualOdometerKm)}
                       </p>
                     </div>
+                  </div>
+
+                  <div className="mt-7 border border-slate-200 rounded-xl p-5">
+                    <h3 className="text-lg font-bold text-[#0047AB]">
+                      📝 Daily Manual Odometer Update
+                    </h3>
+                    <p className="text-sm text-slate-500 mt-2">
+                      පෙර Manual Reading: {formatKm(vehicle.manualOdometerKm)}
+                    </p>
+                    <p className="text-xs text-slate-500 mt-1">
+                      සාමාන්‍ය entry එකකදී පෙර reading එකට වඩා අඩු අගයක් ඇතුළත් කළ නොහැක.
+                    </p>
+
+                    <form onSubmit={handleOdometerSubmit} className="mt-5 space-y-4">
+                      <div>
+                        <label htmlFor="odometer-reading" className="block text-sm font-semibold text-slate-700 mb-2">
+                          අලුත් Odometer Reading (km)
+                        </label>
+                        <input
+                          id="odometer-reading"
+                          type="number"
+                          min="0"
+                          step="1"
+                          required
+                          value={odometerReading}
+                          onChange={(event) => setOdometerReading(event.target.value)}
+                          className="w-full border border-slate-300 rounded-lg px-4 py-3"
+                          placeholder="උදා: 109438"
+                        />
+                      </div>
+
+                      <div>
+                        <label htmlFor="odometer-date" className="block text-sm font-semibold text-slate-700 mb-2">
+                          Reading Date
+                        </label>
+                        <input
+                          id="odometer-date"
+                          type="date"
+                          required
+                          min={sriLankaDate}
+                          max={sriLankaDate}
+                          value={odometerDate}
+                          onChange={(event) => setOdometerDate(event.target.value)}
+                          className="w-full border border-slate-300 rounded-lg px-4 py-3"
+                        />
+                      </div>
+
+                      <div>
+                        <label htmlFor="odometer-reason" className="block text-sm font-semibold text-slate-700 mb-2">
+                          Reason (Optional)
+                        </label>
+                        <textarea
+                          id="odometer-reason"
+                          maxLength={500}
+                          value={odometerReason}
+                          onChange={(event) => setOdometerReason(event.target.value)}
+                          className="w-full border border-slate-300 rounded-lg px-4 py-3"
+                          rows={3}
+                          placeholder="අමතර සටහනක්..."
+                        />
+                      </div>
+
+                      {!!odometerError && (
+                        <p role="alert" className="text-sm text-red-700 bg-red-50 p-3 rounded-lg">
+                          {odometerError}
+                        </p>
+                      )}
+
+                      {!!odometerSuccess && (
+                        <p role="status" className="text-sm text-green-700 bg-green-50 p-3 rounded-lg">
+                          {odometerSuccess}
+                        </p>
+                      )}
+
+                      <button
+                        type="submit"
+                        disabled={odometerSaving}
+                        className="w-full bg-[#0047AB] text-white font-semibold rounded-lg px-5 py-3 disabled:opacity-50"
+                      >
+                        {odometerSaving ? 'Saving...' : 'Save Manual Odometer'}
+                      </button>
+                    </form>
                   </div>
                 </>
               )}

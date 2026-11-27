@@ -59,6 +59,20 @@ export const recordDailyManualOdometer = onCall(async (request) => {
     );
   }
 
+  const sriLankaDate = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Colombo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+
+  if (readingDate !== sriLankaDate) {
+    throw new HttpsError(
+      "invalid-argument",
+      "Only today's Sri Lanka odometer reading date is allowed.",
+    );
+  }
+
   const reason = typeof suppliedReason === "string" ?
     suppliedReason.trim().slice(0, 500) :
     "";
@@ -87,10 +101,10 @@ export const recordDailyManualOdometer = onCall(async (request) => {
     );
   }
 
-  if (!["admin", "superAdmin", "accountant", "driver"].includes(role)) {
+  if (role !== "accountant") {
     throw new HttpsError(
       "permission-denied",
-      "You do not have permission to update odometer readings.",
+      "Only an authorized Accountant can record daily manual odometer readings.",
     );
   }
 
@@ -102,12 +116,37 @@ export const recordDailyManualOdometer = onCall(async (request) => {
   let previousReadingKm = 0;
 
   await db.runTransaction(async (transaction) => {
-    const [companySnapshot, vehicleSnapshot, dailySnapshot] =
-      await Promise.all([
-        transaction.get(companyRef),
-        transaction.get(vehicleRef),
-        transaction.get(dailyRef),
-      ]);
+    const [
+      transactionUserSnapshot,
+      companySnapshot,
+      vehicleSnapshot,
+      dailySnapshot,
+    ] = await Promise.all([
+      transaction.get(userRef),
+      transaction.get(companyRef),
+      transaction.get(vehicleRef),
+      transaction.get(dailyRef),
+    ]);
+
+    if (!transactionUserSnapshot.exists) {
+      throw new HttpsError(
+        "permission-denied",
+        "User profile not found.",
+      );
+    }
+
+    const transactionUserData = transactionUserSnapshot.data();
+
+    if (
+      transactionUserData?.isActive !== true ||
+      transactionUserData?.companyID !== companyID ||
+      transactionUserData?.role !== "accountant"
+    ) {
+      throw new HttpsError(
+        "permission-denied",
+        "Your Accountant access is no longer authorized.",
+      );
+    }
 
     if (
       !companySnapshot.exists ||
@@ -129,16 +168,6 @@ export const recordDailyManualOdometer = onCall(async (request) => {
       throw new HttpsError(
         "failed-precondition",
         "Vehicle is not active.",
-      );
-    }
-
-    if (
-      role === "driver" &&
-      vehicleData?.assignedDriverUid !== uid
-    ) {
-      throw new HttpsError(
-        "permission-denied",
-        "This vehicle is not assigned to you.",
       );
     }
 
@@ -178,6 +207,7 @@ export const recordDailyManualOdometer = onCall(async (request) => {
       readingKm,
       actorUid: uid,
       actorRole: role,
+      source: "accountant",
       reason: reason || "Daily manual odometer entry",
       createdAt: FieldValue.serverTimestamp(),
     });
@@ -190,6 +220,7 @@ export const recordDailyManualOdometer = onCall(async (request) => {
       newReadingKm: readingKm,
       actorUid: uid,
       actorRole: role,
+      source: "accountant",
       reason: reason || "Daily manual odometer entry",
       createdAt: FieldValue.serverTimestamp(),
     });
