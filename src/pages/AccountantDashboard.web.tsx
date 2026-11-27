@@ -72,6 +72,37 @@ function getSriLankaDate(): string {
   return `${year}-${month}-${day}`;
 }
 
+function formatAccountantSummaryForChat(vehicle: Vehicle): string {
+  const dateTime = new Intl.DateTimeFormat('si-LK', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+    timeZone: 'Asia/Colombo',
+  }).format(new Date());
+
+  const formatReading = (value?: number) =>
+    typeof value === 'number'
+      ? `${value.toLocaleString('en-US')} km`
+      : 'දත්ත නැත';
+
+  return [
+    'HESALI TRANSPORT - ACCOUNTANT SUMMARY',
+    `දිනය සහ වේලාව: ${dateTime} (Sri Lanka)`,
+    '',
+    `වාහන අංකය: ${vehicle.RegistrationNumber || 'සඳහන් කර නැත'}`,
+    `වාහන වර්ගය: ${vehicle.vehicleType || 'සඳහන් කර නැත'}`,
+    `වාහන තත්ත්වය: ${vehicle.status || 'සඳහන් කර නැත'}`,
+    '',
+    `වත්මන් Odometer: ${formatReading(vehicle.currentOdometerKm)}`,
+    `Manual Odometer: ${formatReading(vehicle.manualOdometerKm)}`,
+  ].join('\n');
+}
+
+function openWhatsAppWithSummary(vehicle: Vehicle): void {
+  const summary = formatAccountantSummaryForChat(vehicle);
+  const url = `https://wa.me/?text=${encodeURIComponent(summary)}`;
+  window.open(url, '_blank', 'noopener,noreferrer');
+}
+
 export default function AccountantDashboard({
   companyID,
   onSignOut,
@@ -350,6 +381,14 @@ export default function AccountantDashboard({
                       </p>
                     </div>
                   </div>
+
+                  <button
+                    type="button"
+                    onClick={() => openWhatsAppWithSummary(vehicle)}
+                    className="mt-6 w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white font-semibold rounded-xl px-5 py-3"
+                  >
+                    WhatsApp හරහා Summary Share කරන්න
+                  </button>
 
                   <div className="mt-7 border border-slate-200 rounded-xl p-5">
                     <h3 className="text-lg font-bold text-[#0047AB]">
